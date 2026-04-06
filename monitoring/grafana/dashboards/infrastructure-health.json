@@ -1,0 +1,114 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "infrastructure-health",
+    "title": "Infrastructure Health",
+    "tags": ["infrastructure", "portfolio"],
+    "timezone": "browser",
+    "schemaVersion": 30,
+    "version": 1,
+    "refresh": "15s",
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Cluster CPU Utilization",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(rate(container_cpu_usage_seconds_total[5m])) by (node) * 100",
+            "legendFormat": "{{node}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"label": "CPU %", "format": "percent"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Cluster Memory Usage",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(container_memory_usage_bytes) by (node) / 1024 / 1024 / 1024",
+            "legendFormat": "{{node}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"label": "Memory (GB)", "format": "decgbytes"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Disk I/O",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "rate(node_disk_read_bytes_total[5m]) / 1024 / 1024",
+            "legendFormat": "{{device}} - Read",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(node_disk_written_bytes_total[5m]) / 1024 / 1024",
+            "legendFormat": "{{device}} - Write",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"label": "MB/s", "format": "MBs"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Network Throughput",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "rate(node_network_receive_bytes_total{device=~\"eth.*|ens.*\"}[5m]) / 1024 / 1024",
+            "legendFormat": "{{device}} - RX",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(node_network_transmit_bytes_total{device=~\"eth.*|ens.*\"}[5m]) / 1024 / 1024",
+            "legendFormat": "{{device}} - TX",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"label": "MB/s", "format": "MBs"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Pod Restarts (Last 1h)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16},
+        "targets": [
+          {
+            "expr": "increase(kube_pod_container_status_restarts_total[1h])",
+            "legendFormat": "{{namespace}}/{{pod}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"label": "Restarts", "format": "short"},
+          {"format": "short"}
+        ]
+      }
+    ]
+  },
+  "overwrite": true
+}

@@ -1,0 +1,129 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_IMAGE = 'flask-api'
+        AWS_REGION = 'us-east-1'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Lint') {
+            steps {
+                sh '''
+                    pip install flake8 black isort
+                    black --check api/
+                    isort --check-only api/
+                    flake8 api/ --max-line-length=120
+                '''
+            }
+        }
+
+        stage('Test') {
+            steps {
+                sh '''
+                    pip install -r api/requirements.txt
+                    pip install pytest pytest-cov
+                    cd api && pytest tests/ -v --cov=app --cov-report=html
+                '''
+                publishHTML([
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'api/htmlcov',
+                    reportFiles: 'index.html',
+                    reportName: 'Test Coverage Report'
+                ])
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    def image = docker.build("${DOCKER_IMAGE}:${env.BUILD_NUMBER}", "api/")
+                    image.push()
+                }
+            }
+        }
+
+        stage('Security Scan') {
+            steps {
+                sh '''
+                    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+                        aquasec/trivy:latest image --severity HIGH,CRITICAL \
+                        ${DOCKER_IMAGE}:${BUILD_NUMBER}
+                '''
+            }
+        }
+
+        stage('Deploy to Dev') {
+            when {
+                branch 'develop'
+            }
+            steps {
+                sh '''
+                    kubectl set image deployment/flask-api flask-api=${DOCKER_IMAGE}:${BUILD_NUMBER} \
+                        --namespace=dev
+                    kubectl rollout status deployment/flask-api --namespace=dev --timeout=300s
+                '''
+            }
+        }
+
+        stage('Deploy to Staging') {
+            when {
+                branch 'main'
+            }
+            steps {
+                input message: 'Deploy to staging?', ok: 'Deploy'
+                sh '''
+                    kubectl set image deployment/flask-api flask-api=${DOCKER_IMAGE}:${BUILD_NUMBER} \
+                        --namespace=staging
+                    kubectl rollout status deployment/flask-api --namespace=staging --timeout=300s
+                '''
+            }
+        }
+
+        stage('Deploy to Production') {
+            when {
+                tag '*'
+            }
+            steps {
+                input message: 'Deploy to PRODUCTION?', ok: 'Deploy to Production'
+                sh '''
+                    kubectl set image deployment/flask-api flask-api=${DOCKER_IMAGE}:${BUILD_NUMBER} \
+                        --namespace=prod
+                    kubectl rollout status deployment/flask-api --namespace=prod --timeout=300s
+                '''
+            }
+        }
+
+        stage('Notify') {
+            always {
+                script {
+                    if (currentBuild.result == 'SUCCESS') {
+                        echo 'Deployment successful! Sending notification...'
+                    } else {
+                        echo 'Deployment failed! Sending alert...'
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed! Check logs for details.'
+        }
+        cleanup {
+            cleanWs()
+        }
+    }
+}

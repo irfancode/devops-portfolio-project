@@ -1,0 +1,18 @@
+# Staging Environment Overrides
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask-api
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+        - name: flask-api
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
